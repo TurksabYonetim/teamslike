@@ -1,0 +1,32 @@
+services:
+  postgres:
+    image: postgres:16-alpine
+    container_name: teamslike-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: teamslike
+      POSTGRES_USER: teamslike
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-teamslike_dev}
+    ports:
+      - "127.0.0.1:5434:5432"
+    volumes:
+      - teamslike_pg_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U teamslike -d teamslike"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  redis:
+    image: redis:7-alpine
+    container_name: teamslike-redis
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD:-teamslike_dev}"]
+    ports:
+      - "127.0.0.1:6380:6379"
+    volumes:
+      - teamslike_redis_data:/data
+
+volumes:
+  teamslike_pg_data:
+  teamslike_redis_data:

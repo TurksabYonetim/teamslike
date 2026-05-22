@@ -37,6 +37,19 @@ class Settings(BaseSettings):
     chatwoot_user_api_token: str
     chatwoot_account_id: int = 1
 
+    cors_allowed_origins: str = Field(default="")
+
+    log_format: str = Field(default="json")
+    log_level: str = Field(default="INFO")
+
+    sentry_dsn: str = Field(default="")
+    sentry_environment: str = Field(default="production")
+    sentry_traces_sample_rate: float = Field(default=0.0)
+
+    @property
+    def cors_origins_list(self) -> list[str]:
+        return [o.strip() for o in self.cors_allowed_origins.split(",") if o.strip()]
+
 
 @lru_cache(maxsize=1)
 def get_settings() -> Settings:

@@ -1,0 +1,46 @@
+# VCS
+.git
+.gitignore
+.gitattributes
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.egg-info/
+.coverage
+htmlcov/
+
+# Env / secrets — never bake into image
+.env
+.env.*
+!.env.example
+
+# Editor / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Docs / tests / dev-only infra (not needed at runtime)
+docs/
+tests/
+infra/docker-compose.dev.yml
+README.md
+*.md
+
+# Build artifacts
+dist/
+build/

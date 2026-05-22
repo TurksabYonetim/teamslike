@@ -1,0 +1,89 @@
+# =============================================================================
+# Chatwoot self-host stack (own postgres + redis, isolated from API stack).
+# Exposed via the shared `teamslike_edge` network → Caddy proxies support.* to here.
+#
+# Run from repo root:
+#   cp infra/chatwoot/.env.example infra/chatwoot/.env   # fill secrets
+#   # First-time only: prepare DB schema
+#   docker compose --env-file infra/chatwoot/.env -f infra/chatwoot/docker-compose.yml \
+#     run --rm rails bundle exec rails db:chatwoot_prepare
+#   docker compose --env-file infra/chatwoot/.env -f infra/chatwoot/docker-compose.yml up -d
+# =============================================================================
+
+name: chatwoot
+
+networks:
+  chatwoot_internal:
+  edge:
+    name: teamslike_edge
+    external: true
+
+volumes:
+  chatwoot_postgres_data:
+  chatwoot_redis_data:
+  chatwoot_storage:
+
+x-chatwoot-app: &chatwoot-app
+  image: ${CHATWOOT_IMAGE}
+  env_file: .env
+  restart: unless-stopped
+  depends_on:
+    chatwoot-postgres:
+      condition: service_healthy
+    chatwoot-redis:
+      condition: service_healthy
+  volumes:
+    - chatwoot_storage:/app/storage
+
+services:
+  chatwoot-postgres:
+    image: postgres:16-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${POSTGRES_DATABASE}
+      POSTGRES_USER: ${POSTGRES_USERNAME}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+    volumes:
+      - chatwoot_postgres_data:/var/lib/postgresql/data
+    networks:
+      - chatwoot_internal
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USERNAME} -d ${POSTGRES_DATABASE}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 15s
+
+  chatwoot-redis:
+    image: redis:7-alpine
+    restart: unless-stopped
+    command: ["redis-server", "--requirepass", "${REDIS_PASSWORD}", "--appendonly", "yes"]
+    volumes:
+      - chatwoot_redis_data:/data
+    networks:
+      - chatwoot_internal
+    healthcheck:
+      test: ["CMD", "redis-cli", "-a", "${REDIS_PASSWORD}", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  rails:
+    <<: *chatwoot-app
+    networks:
+      - chatwoot_internal
+      - edge
+    expose:
+      - "3000"
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://127.0.0.1:3000/api"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
+
+  sidekiq:
+    <<: *chatwoot-app
+    command: ["bundle", "exec", "sidekiq", "-C", "config/sidekiq.yml"]
+    networks:
+      - chatwoot_internal

@@ -1,0 +1,67 @@
+{
+	email {$ACME_EMAIL}
+}
+
+# -------- API --------
+{$API_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		X-Frame-Options "DENY"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	reverse_proxy api:8800 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	log {
+		output stdout
+		format json
+	}
+}
+
+# -------- Chatwoot (only when chatwoot stack is up) --------
+{$CHATWOOT_DOMAIN} {
+	encode zstd gzip
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+	# Chatwoot uses ActionCable (websocket) on /cable
+	reverse_proxy rails:3000 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	log {
+		output stdout
+		format json
+	}
+}
+
+# -------- Jitsi (only when jitsi stack is up) --------
+{$JITSI_DOMAIN} {
+	encode zstd gzip
+	# Jitsi needs frame-ancestors for embedding; relax X-Frame-Options here
+	header {
+		Strict-Transport-Security "max-age=31536000; includeSubDomains"
+		-Server
+	}
+	reverse_proxy web:80 {
+		header_up Host {host}
+		header_up X-Real-IP {remote_host}
+		header_up X-Forwarded-For {remote_host}
+		header_up X-Forwarded-Proto {scheme}
+	}
+	log {
+		output stdout
+		format json
+	}
+}

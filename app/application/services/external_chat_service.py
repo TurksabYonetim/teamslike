@@ -183,7 +183,11 @@ class ExternalChatService:
         return out
 
     async def post_message_as_external(
-        self, identity: ExternalIdentity, conversation_id: int, content: str
+        self,
+        identity: ExternalIdentity,
+        conversation_id: int,
+        content: str,
+        attachments: list[tuple[str, bytes, str]] | None = None,
     ) -> dict:
         contact_id = await self._ensure_chatwoot_contact(
             tenant_slug=identity.tenant_slug,
@@ -198,6 +202,7 @@ class ExternalChatService:
             conversation_id=conversation_id,
             content=content,
             message_type="incoming",
+            attachments=attachments,
         )
 
     # ------- seller (staff) inbox view -------

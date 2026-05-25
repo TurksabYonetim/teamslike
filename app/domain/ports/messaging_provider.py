@@ -31,7 +31,11 @@ class MessagingProviderPort(ABC):
 
     @abstractmethod
     async def send_message(
-        self, conversation_id: int, content: str, message_type: str = "outgoing"
+        self,
+        conversation_id: int,
+        content: str,
+        message_type: str = "outgoing",
+        attachments: list[tuple[str, bytes, str]] | None = None,
     ) -> dict: ...
 
     @abstractmethod

@@ -87,15 +87,29 @@ class ChatwootProvider(MessagingProviderPort):
             )
 
     async def send_message(
-        self, conversation_id: int, content: str, message_type: str = "outgoing"
+        self,
+        conversation_id: int,
+        content: str,
+        message_type: str = "outgoing",
+        attachments: list[tuple[str, bytes, str]] | None = None,
     ) -> dict:
-        async with httpx.AsyncClient(timeout=15) as client:
-            payload = {"content": content, "message_type": message_type}
-            r = await client.post(
-                self._account_path(f"/conversations/{conversation_id}/messages"),
-                json=payload,
-                headers=self._headers,
-            )
+        # attachments: list of (filename, content_bytes, content_type). Chatwoot
+        # expects `attachments[]` repeated form fields when uploading files; in
+        # that case Content-Type must be multipart (httpx sets it via `files=`).
+        async with httpx.AsyncClient(timeout=60) as client:
+            url = self._account_path(f"/conversations/{conversation_id}/messages")
+            if attachments:
+                # Strip the JSON Content-Type so httpx can set multipart boundary.
+                auth_headers = {"api_access_token": self._token}
+                data = {"content": content, "message_type": message_type}
+                files = [
+                    ("attachments[]", (fname, fbytes, ctype))
+                    for fname, fbytes, ctype in attachments
+                ]
+                r = await client.post(url, data=data, files=files, headers=auth_headers)
+            else:
+                payload = {"content": content, "message_type": message_type}
+                r = await client.post(url, json=payload, headers=self._headers)
             if r.status_code >= 400:
                 raise ProviderError(f"Chatwoot send_message failed: {r.status_code} {r.text}")
             return r.json()

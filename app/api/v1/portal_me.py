@@ -1,7 +1,7 @@
 from typing import Annotated
 from uuid import UUID
 
-from fastapi import APIRouter, Depends, Query, status
+from fastapi import APIRouter, Depends, File, Form, Query, UploadFile, status
 
 from app.api.deps import get_external_chat_service, get_external_identity
 from app.api.schemas.external_chat import (
@@ -98,4 +98,23 @@ async def post_message(
         identity=identity,
         conversation_id=conversation_id,
         content=body.content,
+    )
+
+
+@router.post("/threads/{conversation_id}/attachments", status_code=status.HTTP_201_CREATED)
+async def post_attachment(
+    conversation_id: int,
+    identity: Annotated[ExternalIdentity, Depends(get_external_identity)],
+    svc: Annotated[ExternalChatService, Depends(get_external_chat_service)],
+    file: UploadFile = File(...),
+    content: Annotated[str, Form()] = "",
+):
+    # Tek dosya/istek. Çoklu yükleme için frontend ardışık istek atar.
+    data = await file.read()
+    attachments = [(file.filename or "file", data, file.content_type or "application/octet-stream")]
+    return await svc.post_message_as_external(
+        identity=identity,
+        conversation_id=conversation_id,
+        content=content,
+        attachments=attachments,
     )

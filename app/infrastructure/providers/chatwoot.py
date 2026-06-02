@@ -33,21 +33,44 @@ class ChatwootProvider(MessagingProviderPort):
             r = await client.post(
                 self._account_path("/contacts"), json=payload, headers=self._headers
             )
-            if r.status_code == 422 and identifier:
-                rs = await client.get(
-                    self._account_path("/contacts/search"),
-                    params={"q": identifier},
-                    headers=self._headers,
-                )
-                rs.raise_for_status()
-                items = rs.json().get("payload", [])
-                if items:
-                    c = items[0]
+            if r.status_code == 422:
+                # Create failed on a duplicate identifier OR email. Recover by
+                # searching existing contacts and reusing one (true upsert):
+                # prefer an exact identifier match, then fall back to an email
+                # match. The shared Chatwoot enforces unique email per account,
+                # so a contact with this email may already exist under another
+                # identifier (or none) — reuse it instead of failing.
+                found: dict[int, dict] = {}
+                for q in (identifier, email):
+                    if not q:
+                        continue
+                    rs = await client.get(
+                        self._account_path("/contacts/search"),
+                        params={"q": q},
+                        headers=self._headers,
+                    )
+                    if rs.status_code >= 400:
+                        continue
+                    for c in rs.json().get("payload", []):
+                        found[c["id"]] = c
+                match = None
+                if identifier:
+                    match = next(
+                        (c for c in found.values() if c.get("identifier") == identifier), None
+                    )
+                if match is None and email:
+                    match = next(
+                        (c for c in found.values() if (c.get("email") or "").lower() == email.lower()),
+                        None,
+                    )
+                if match is None and found:
+                    match = next(iter(found.values()))
+                if match:
                     return MessagingContact(
-                        id=c["id"],
-                        name=c.get("name", ""),
-                        email=c.get("email"),
-                        identifier=c.get("identifier"),
+                        id=match["id"],
+                        name=match.get("name", ""),
+                        email=match.get("email"),
+                        identifier=match.get("identifier"),
                     )
             if r.status_code >= 400:
                 raise ProviderError(f"Chatwoot upsert_contact failed: {r.status_code} {r.text}")
